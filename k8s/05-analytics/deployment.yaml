@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: togglemaster-analytics
+  labels:
+    app: analytics-service
+    app.kubernetes.io/part-of: togglemaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+        app.kubernetes.io/part-of: togglemaster
+    spec:
+      serviceAccountName: analytics-service-sa   # criado pelo eksctl com IRSA (role IAM)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: analytics-service
+        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/analytics-service:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8005
+        envFrom:
+        - configMapRef:
+            name: analytics-service-config
+        - secretRef:
+            name: analytics-service-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 96Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}

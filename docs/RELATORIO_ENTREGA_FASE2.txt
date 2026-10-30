@@ -1,0 +1,69 @@
+POSTECH - DCLT
+Relatório de Entrega - Tech Challenge - Fase 2
+Projeto ToggleMaster (Feature Flags) - Microsserviços no Kubernetes (Amazon EKS)
+
+========================================================================
+1. PARTICIPANTES
+========================================================================
+Nome                                    | RM     | Discord
+Adelita Barriquelo Parmegiani           | 376828 | <usuario_discord>
+Davi Emanuel Torres de Souza Nogueira   | 376081 | <usuario_discord>
+Giovanni Belloni de Moura               | 376313 | <usuario_discord>
+Marcos Gabriel Jampietri de Paiva       | 376545 | <usuario_discord>
+Walter Willian Simões Moya              | 376821 | <usuario_discord>
+
+========================================================================
+2. LINKS
+========================================================================
+Repositório (código, Dockerfiles, docker-compose, manifestos k8s, infra):
+  https://github.com/<usuario>/togglemaster-fase2
+Vídeo de demonstração:
+  <link do YouTube (não listado) ou Google Drive com acesso liberado>
+Código-fonte original dos microsserviços:
+  https://github.com/FIAP-TCs
+Pontuação extra - perfil público do Google Cloud Skills Boost (se concluído):
+  <link do perfil/badge>
+
+========================================================================
+3. RESUMO DA SOLUÇÃO
+========================================================================
+Ambiente de nuvem: conta AWS pessoal (Opção B), região us-east-1.
+- Conteinerização: Dockerfile multi-stage para os 5 serviços (Go em
+  distroless não-root; Python em python:3.11-slim não-root) e um
+  docker-compose.yml com 9 containers (5 apps + 2 PostgreSQL + Redis +
+  DynamoDB Local).
+- Infraestrutura: EKS criado com eksctl (node group gerenciado
+  t3.medium mín. 1 / desejado 2 / máx. 4, nós em subnets privadas),
+  5 repositórios ECR com scan on push, 3 RDS PostgreSQL independentes
+  (auth, flag, targeting), ElastiCache Redis com TLS, tabela DynamoDB
+  ToggleMasterAnalytics e fila SQS Standard togglemaster-events.
+- Cluster: Metrics Server, AWS Load Balancer Controller (IRSA) e
+  NGINX Ingress Controller exposto por NLB, KEDA (IRSA).
+- Manifestos: Namespace por serviço, Deployment com imagens do ECR,
+  Service ClusterIP, Secret (base64), ConfigMap, Ingress com rotas
+  /auth, /flags, /rules e /evaluate, requests/limits e probes.
+- Escalabilidade: HPA por CPU (70%) no evaluation-service e KEDA
+  ScaledObject (aws-sqs-queue, 5 mensagens por pod, 0 a 5 pods) no
+  analytics-service.
+
+========================================================================
+4. DESAFIOS E DECISÕES
+========================================================================
+- O código original não compilava (go.mod inválido no auth-service,
+  imports não usados/ausentes, go.sum corrompido, Flask 2.2 sem pin
+  do Werkzeug). Foram aplicadas somente as correções necessárias.
+- A SQS no ambiente local é a fila real da AWS, porque o
+  evaluation-service usa o AWS SDK Go v1, que não aceita endpoint
+  local. O DynamoDB local funciona via AWS_ENDPOINT_URL_DYNAMODB.
+- IRSA em vez de LabRole ou Access Keys: cada serviço tem uma role IAM
+  própria com o mínimo de permissões; nenhuma credencial estática no
+  cluster.
+- KEDA em vez de HPA por CPU no analytics: escala pela profundidade da
+  fila (causa) e não pela CPU (efeito), permitindo escalar até zero.
+- Os RDS nascem vazios e não são acessíveis de fora da VPC: o schema é
+  criado por Jobs do Kubernetes (psql) dentro do cluster.
+- Segurança: imagens não-root, readOnlyRootFilesystem, Pod Security
+  "restricted", scan no ECR, Trivy/Hadolint/Syft/Gitleaks no pipeline
+  local.
+- Custo: ambiente criado e destruído no mesmo dia (script
+  scripts/99-destruir-ambiente.sh).

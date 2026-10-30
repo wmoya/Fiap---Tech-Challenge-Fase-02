@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service-db-schema
+  namespace: togglemaster-auth
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS api_keys (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+    
+        -- key_hash armazena o hash SHA-256 da chave, que tem 64 caracteres hexadecimais
+        key_hash VARCHAR(64) NOT NULL UNIQUE, 
+    
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- chave de serviço do evaluation-service (guarda só o SHA-256, como o /admin/keys)
+    INSERT INTO api_keys (name, key_hash)
+    VALUES ('evaluation-service', encode(sha256(convert_to(:'service_key', 'UTF8')), 'hex'))
+    ON CONFLICT (key_hash) DO NOTHING;
+---
+# Job que cria as tabelas no RDS (auth_db). Roda uma vez e termina.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: auth-service-db-init
+  namespace: togglemaster-auth
+spec:
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: psql
+        image: postgres:16-alpine
+        command: ["sh", "-c", "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -v service_key=\"$SERVICE_API_KEY\" -f /sql/init.sql"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auth-service-secret
+              key: DATABASE_URL
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: auth-service-secret
+              key: SERVICE_API_KEY
+        - name: HOME
+          value: /tmp
+        resources:
+          requests: {cpu: 20m, memory: 32Mi}
+          limits: {cpu: 200m, memory: 128Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: sql
+          mountPath: /sql
+      volumes:
+      - name: sql
+        configMap:
+          name: auth-service-db-schema

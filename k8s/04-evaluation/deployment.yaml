@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evaluation-service
+  namespace: togglemaster-evaluation
+  labels:
+    app: evaluation-service
+    app.kubernetes.io/part-of: togglemaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: evaluation-service
+  template:
+    metadata:
+      labels:
+        app: evaluation-service
+        app.kubernetes.io/part-of: togglemaster
+    spec:
+      serviceAccountName: evaluation-service-sa   # criado pelo eksctl com IRSA (role IAM)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: evaluation-service
+        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/evaluation-service:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8004
+        envFrom:
+        - configMapRef:
+            name: evaluation-service-config
+        - secretRef:
+            name: evaluation-service-secret
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]

@@ -1,0 +1,21 @@
+# ALTERNATIVA (Opção A / AWS Academy): HPA por CPU no analytics-service.
+# Não aplique junto com o ScaledObject do KEDA (os dois disputariam o mesmo Deployment).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: analytics-service-hpa
+  namespace: togglemaster-analytics
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: analytics-service
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

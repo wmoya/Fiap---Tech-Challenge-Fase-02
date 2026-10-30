@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DockerComposeLocalUsaFilaReal",
+      "Effect": "Allow",
+      "Action": ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:ChangeMessageVisibility"],
+      "Resource": "arn:aws:sqs:us-east-1:<ACCOUNT_ID>:togglemaster-events"
+    }
+  ]
+}

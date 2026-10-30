@@ -1,0 +1,13 @@
+# segredos - nunca commitar
+.env
+infra/cloud.env
+k8s/generated/
+*.pem
+*.key
+# artefatos
+reports/
+tfplan
+__pycache__/
+*.pyc
+.venv/
+venv/

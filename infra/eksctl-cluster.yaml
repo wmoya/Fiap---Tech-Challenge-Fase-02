@@ -1,0 +1,43 @@
+# Cluster EKS do ToggleMaster (Opção B - conta pessoal)
+# Criar:   eksctl create cluster -f infra/eksctl-cluster.yaml      (~15-20 min)
+# Apagar:  eksctl delete cluster -f infra/eksctl-cluster.yaml --disable-nodegroup-eviction --wait
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: togglemaster
+  region: us-east-1
+  tags:
+    project: togglemaster
+    fase: "2"
+
+# OIDC provider: pré-requisito do IRSA (IAM Roles for Service Accounts)
+iam:
+  withOIDC: true
+
+vpc:
+  cidr: 10.20.0.0/16
+  nat:
+    gateway: Single          # um NAT só: suficiente para o laboratório e mais barato
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+managedNodeGroups:
+  - name: ng-apps
+    instanceType: m7i-flex.large   # elegível ao Free Tier (t3.medium não é); 2 vCPU / 8 GB
+    minSize: 1
+    desiredCapacity: 2
+    maxSize: 4
+    volumeSize: 20
+    privateNetworking: true  # nós sem IP público; saída pela NAT
+    labels:
+      role: apps
+    tags:
+      project: togglemaster
+
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+# O Metrics Server é instalado depois com kubectl apply (conforme o enunciado) - ver PASSO_A_PASSO.md
