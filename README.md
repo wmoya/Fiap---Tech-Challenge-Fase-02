@@ -1,4 +1,4 @@
-# ToggleMaster — Fase 2 (POSTECH DCLT)
+# ToggleMaster - Fase 2 (POSTECH DCLT)
 
 Ecossistema de 5 microsserviços de feature flags conteinerizado e implantado no **Amazon EKS**, com escalabilidade por **HPA** (CPU) e **KEDA** (fila SQS).
 
